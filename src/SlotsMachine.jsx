@@ -17,7 +17,7 @@ const PAYOUTS = {
 const ROWS = 3;
 const COLS = 5;
 
-const SlotMachine = ({ winProbability }) => {
+const SlotMachine = ({ winProbability = 0.6 }) => {
   const generateReelStrip = useCallback(() => {
     return Array(30)
       .fill()
@@ -45,11 +45,25 @@ const SlotMachine = ({ winProbability }) => {
     setWin(0);
     setWinningRow(null);
 
+    let spinDuration = 3000;
+    let intervalDuration = 50;
+    let totalTicks = spinDuration / intervalDuration;
+    let currentTick = 0;
+
+    const isWin = Math.random() < winProbability;
+
     const newReels = Array(COLS)
       .fill()
       .map(() => generateReelStrip());
 
-    let spinDuration = 3000;
+    if (isWin) {
+      // Ensuring at least 3 same symbols on a winning row
+      const winningSymbol = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+      for (let i = 0; i < 3; i++) {
+        newReels[i][0] = winningSymbol; // Force at least 3 same symbols on the first row
+      }
+    }
+
     const spinInterval = setInterval(() => {
       setReels((reels) =>
         reels.map((reel, i) => {
@@ -58,23 +72,22 @@ const SlotMachine = ({ winProbability }) => {
           return newReel;
         })
       );
-    }, 50);
 
-    setTimeout(() => {
-      clearInterval(spinInterval);
-      setSpinning(false);
-      const finalReels = newReels.map((reel) => reel.slice(0, ROWS));
-      setReels(finalReels);
-      calculateWin(finalReels);
-    }, spinDuration);
-  }, [balance, bet, spinning, generateReelStrip]);
+      currentTick++;
+      if (currentTick >= totalTicks) {
+        clearInterval(spinInterval);
+        setSpinning(false);
+        const finalReels = newReels.map((reel) => reel.slice(0, ROWS));
+        setReels(finalReels);
+        calculateWin(finalReels, isWin);
+      }
+    }, intervalDuration);
+  }, [balance, bet, spinning, generateReelStrip, winProbability]);
 
   const calculateWin = useCallback(
-    (finalReels) => {
+    (finalReels, isWin) => {
       let totalWin = 0;
       let winningRowIndex = null;
-
-      const isWin = Math.random() < winProbability;
 
       if (isWin) {
         for (let row = 0; row < ROWS; row++) {
@@ -93,7 +106,7 @@ const SlotMachine = ({ winProbability }) => {
             const rowWin = bet * PAYOUTS[winningSymbol] * (maxCount - 2);
             totalWin += rowWin;
 
-            if (row === 1) {
+            if (row === 0) {
               winningRowIndex = row;
             }
           }
@@ -106,7 +119,7 @@ const SlotMachine = ({ winProbability }) => {
         setWinningRow(winningRowIndex);
       }
     },
-    [bet, winProbability]
+    [bet]
   );
 
   return (
