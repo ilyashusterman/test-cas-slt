@@ -1,4 +1,3 @@
-// SlotMachine.jsx
 import React, { useState, useEffect, useCallback } from "react";
 
 const SYMBOLS = ["💎", "🍒", "🎲", "🔔", "7️⃣", "BAR", "🍋", "🍉", "🍇"];
@@ -27,7 +26,7 @@ const SlotMachine = ({ winProbability = 0.6 }) => {
   const initialReels = useCallback(() => {
     return Array(COLS)
       .fill()
-      .map(() => generateReelStrip().slice(0, ROWS));
+      .map(() => generateReelStrip());
   }, [generateReelStrip]);
 
   const [reels, setReels] = useState(initialReels);
@@ -35,7 +34,8 @@ const SlotMachine = ({ winProbability = 0.6 }) => {
   const [balance, setBalance] = useState(20670000);
   const [bet, setBet] = useState(10000);
   const [win, setWin] = useState(0);
-  const [winningRow, setWinningRow] = useState(null);
+  const [winningRows, setWinningRows] = useState([]);
+  const [showWinAnimation, setShowWinAnimation] = useState(false);
 
   const spin = useCallback(() => {
     if (balance < bet || spinning) return;
@@ -43,13 +43,10 @@ const SlotMachine = ({ winProbability = 0.6 }) => {
     setSpinning(true);
     setBalance((prev) => prev - bet);
     setWin(0);
-    setWinningRow(null);
+    setWinningRows([]);
+    setShowWinAnimation(false);
 
-    let spinDuration = 3000;
-    let intervalDuration = 50;
-    let totalTicks = spinDuration / intervalDuration;
-    let currentTick = 0;
-
+    const spinDuration = 3000;
     const isWin = Math.random() < winProbability;
 
     const newReels = Array(COLS)
@@ -57,37 +54,38 @@ const SlotMachine = ({ winProbability = 0.6 }) => {
       .map(() => generateReelStrip());
 
     if (isWin) {
-      // Ensuring at least 3 same symbols on a winning row
       const winningSymbol = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+      const winningRow = Math.floor(Math.random() * ROWS);
       for (let i = 0; i < 3; i++) {
-        newReels[i][0] = winningSymbol; // Force at least 3 same symbols on the first row
+        newReels[i][winningRow] = winningSymbol;
       }
     }
 
     const spinInterval = setInterval(() => {
-      setReels((reels) =>
-        reels.map((reel, i) => {
+      setReels((prevReels) =>
+        prevReels.map((reel) => {
           const newReel = [...reel];
           newReel.unshift(newReel.pop());
           return newReel;
         })
       );
+    }, 100);
 
-      currentTick++;
-      if (currentTick >= totalTicks) {
-        clearInterval(spinInterval);
-        setSpinning(false);
-        const finalReels = newReels.map((reel) => reel.slice(0, ROWS));
-        setReels(finalReels);
-        calculateWin(finalReels, isWin);
-      }
-    }, intervalDuration);
+    setTimeout(() => {
+      clearInterval(spinInterval);
+      setSpinning(false);
+      setReels(newReels);
+      calculateWin(
+        newReels.map((reel) => reel.slice(0, ROWS)),
+        isWin
+      );
+    }, spinDuration);
   }, [balance, bet, spinning, generateReelStrip, winProbability]);
 
   const calculateWin = useCallback(
     (finalReels, isWin) => {
       let totalWin = 0;
-      let winningRowIndex = null;
+      const winningRowsIndices = [];
 
       if (isWin) {
         for (let row = 0; row < ROWS; row++) {
@@ -105,10 +103,7 @@ const SlotMachine = ({ winProbability = 0.6 }) => {
           if (maxCount >= 3) {
             const rowWin = bet * PAYOUTS[winningSymbol] * (maxCount - 2);
             totalWin += rowWin;
-
-            if (row === 0) {
-              winningRowIndex = row;
-            }
+            winningRowsIndices.push(row);
           }
         }
       }
@@ -116,32 +111,36 @@ const SlotMachine = ({ winProbability = 0.6 }) => {
       if (totalWin > 0) {
         setWin(totalWin);
         setBalance((prev) => prev + totalWin);
-        setWinningRow(winningRowIndex);
+        setWinningRows(winningRowsIndices);
+        setShowWinAnimation(true);
       }
     },
     [bet]
   );
 
   return (
-    <div className="p-4 bg-purple-900 text-white rounded-lg shadow-xl max-w-3xl mx-auto">
-      <div className="flex justify-between items-center mb-4">
+    <div className="p-4 bg-gradient-to-b from-purple-900 to-purple-700 text-white rounded-lg shadow-xl max-w-4xl mx-auto">
+      <div className="flex justify-between items-center mb-4 bg-gradient-to-r from-yellow-500 to-yellow-700 p-2 rounded-lg">
         <div className="text-2xl font-bold">💰 ${balance.toLocaleString()}</div>
-        <div className="text-xl">Level 3</div>
+        <div className="text-xl bg-blue-600 px-4 py-1 rounded-full">
+          Level 3
+        </div>
       </div>
-      <div className="grid grid-cols-5 gap-1 mb-4 bg-purple-800 p-2 rounded overflow-hidden h-64 relative">
+      <div className="grid grid-cols-5 gap-1 mb-4 bg-gradient-to-b from-purple-800 to-purple-900 p-4 rounded-lg overflow-hidden h-80 relative">
         {reels.map((reel, i) => (
           <div key={i} className="relative h-full overflow-hidden">
             <div
-              className={`absolute inset-0 flex flex-col transition-transform duration-[3000ms] ease-in-out ${
-                spinning ? "animate-slot-spin" : ""
+              className={`absolute inset-0 flex flex-col transition-transform duration-100 ease-linear ${
+                spinning ? "-translate-y-1/3" : ""
               }`}
+              style={{ height: "150%" }}
             >
-              {reel.map((symbol, j) => (
+              {[...reel, ...reel.slice(0, ROWS)].map((symbol, j) => (
                 <div
                   key={j}
-                  className={`flex items-center justify-center h-1/3 text-5xl ${
-                    j === 1 && winningRow === 1
-                      ? "animate-pulse bg-yellow-500"
+                  className={`flex items-center justify-center h-1/6 text-6xl ${
+                    !spinning && winningRows.includes(j % ROWS)
+                      ? "animate-pulse bg-yellow-500 bg-opacity-50"
                       : ""
                   }`}
                 >
@@ -151,7 +150,7 @@ const SlotMachine = ({ winProbability = 0.6 }) => {
             </div>
           </div>
         ))}
-        {winningRow === 1 && (
+        {showWinAnimation && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-6xl font-bold text-yellow-400 animate-bounce">
               BIG WIN!
@@ -159,18 +158,18 @@ const SlotMachine = ({ winProbability = 0.6 }) => {
           </div>
         )}
       </div>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 bg-gradient-to-r from-gray-800 to-gray-900 p-4 rounded-lg">
         <button
           onClick={() => setBet(Math.max(1000, bet - 1000))}
-          className="bg-red-500 px-4 py-2 rounded text-xl font-bold"
+          className="bg-red-500 px-6 py-3 rounded-full text-2xl font-bold shadow-lg transition-all hover:bg-red-600 active:scale-95"
           disabled={spinning}
         >
           -
         </button>
-        <div className="text-xl font-bold">Bet: ${bet.toLocaleString()}</div>
+        <div className="text-2xl font-bold">Bet: ${bet.toLocaleString()}</div>
         <button
           onClick={() => setBet(Math.min(100000, bet + 1000))}
-          className="bg-green-500 px-4 py-2 rounded text-xl font-bold"
+          className="bg-green-500 px-6 py-3 rounded-full text-2xl font-bold shadow-lg transition-all hover:bg-green-600 active:scale-95"
           disabled={spinning}
         >
           +
@@ -178,13 +177,13 @@ const SlotMachine = ({ winProbability = 0.6 }) => {
         <button
           onClick={spin}
           disabled={spinning || balance < bet}
-          className="bg-green-600 px-6 py-2 rounded disabled:opacity-50 text-xl font-bold"
+          className="bg-gradient-to-r from-green-500 to-green-600 px-8 py-3 rounded-full disabled:opacity-50 text-2xl font-bold shadow-lg transition-all hover:from-green-600 hover:to-green-700 active:scale-95"
         >
           {spinning ? "Spinning..." : "SPIN"}
         </button>
       </div>
       {win > 0 && (
-        <div className="mt-4 text-2xl font-bold text-yellow-400 text-center animate-bounce">
+        <div className="mt-4 text-3xl font-bold text-yellow-400 text-center animate-pulse">
           You won ${win.toLocaleString()}!
         </div>
       )}
