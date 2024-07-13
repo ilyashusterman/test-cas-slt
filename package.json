@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://ilyashusterman.github.io/test-cas-slt",
+  "homepage": "https://ilyashusterman.github.io/test-cas-slt/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
